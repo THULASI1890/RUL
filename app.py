@@ -1,715 +1,664 @@
+
 import streamlit as st
 import pandas as pd
+import numpy as np
 import joblib
+import time
+from datetime import datetime
 
-# =========================================================
+# ============================================================
 # PAGE CONFIG
-# =========================================================
+# ============================================================
 
 st.set_page_config(
-    page_title="Battery RUL AI",
+    page_title="BatteryAI | Reusable Battery Life",
     page_icon="🔋",
     layout="wide",
     initial_sidebar_state="expanded"
 )
 
-
-# =========================================================
-# CUSTOM CSS - DARK MODERN UI
-# =========================================================
+# ============================================================
+# CUSTOM CSS
+# ============================================================
 
 st.markdown("""
 <style>
 
-    /* ---------- Main Background ---------- */
-
     .stApp {
-        background:
-            radial-gradient(
-                circle at 10% 10%,
-                rgba(0, 220, 180, 0.08),
-                transparent 30%
-            ),
-            radial-gradient(
-                circle at 90% 20%,
-                rgba(50, 120, 255, 0.08),
-                transparent 30%
-            ),
-            #080b12;
-        color: #f5f7fa;
+        background: linear-gradient(135deg, #07111f 0%, #0b1728 50%, #07111f 100%);
+        color: white;
     }
-
-
-    /* ---------- Sidebar ---------- */
-
-    section[data-testid="stSidebar"] {
-        background: #0d111a;
-        border-right: 1px solid #202938;
-    }
-
-    section[data-testid="stSidebar"] * {
-        color: #dce3ed;
-    }
-
-
-    /* ---------- Header ---------- */
 
     .main-title {
-        font-size: 42px;
+        font-size: 48px;
         font-weight: 800;
-        letter-spacing: -1px;
+        text-align: center;
         margin-bottom: 5px;
+        color: #ffffff;
     }
 
     .subtitle {
-        color: #8d99aa;
-        font-size: 16px;
+        text-align: center;
+        font-size: 18px;
+        color: #a9bdd5;
+        margin-bottom: 35px;
+    }
+
+    .hero {
+        padding: 30px;
+        border-radius: 25px;
+        background: linear-gradient(
+            135deg,
+            rgba(0, 255, 170, 0.12),
+            rgba(0, 140, 255, 0.10)
+        );
+        border: 1px solid rgba(0,255,170,0.25);
         margin-bottom: 25px;
     }
 
-
-    /* ---------- Cards ---------- */
-
-    .card {
-        background: linear-gradient(
-            145deg,
-            #111722,
-            #0d121b
-        );
-
-        border: 1px solid #202938;
+    .metric-card {
+        padding: 22px;
         border-radius: 18px;
-        padding: 24px;
-
-        box-shadow:
-            0 10px 30px rgba(0,0,0,0.25);
-
-        margin-bottom: 18px;
-    }
-
-
-    .prediction-card {
-        background:
-            linear-gradient(
-                135deg,
-                rgba(0, 214, 170, 0.15),
-                rgba(30, 80, 150, 0.12)
-            );
-
-        border: 1px solid rgba(0, 214, 170, 0.35);
-        border-radius: 22px;
-        padding: 30px;
-
+        background: rgba(255,255,255,0.06);
+        border: 1px solid rgba(255,255,255,0.10);
         text-align: center;
-
-        box-shadow:
-            0 15px 45px rgba(0,0,0,0.3);
+        min-height: 130px;
     }
 
-
-    .prediction-label {
-        color: #8d99aa;
+    .metric-title {
+        color: #9fb4cb;
         font-size: 15px;
         margin-bottom: 8px;
     }
 
-
-    .prediction-value {
-        color: #00d6aa;
-        font-size: 48px;
+    .metric-value {
+        color: white;
+        font-size: 30px;
         font-weight: 800;
     }
 
-
-    .prediction-unit {
-        color: #aab4c3;
-        font-size: 16px;
-    }
-
-
-    /* ---------- Section Titles ---------- */
-
     .section-title {
-        font-size: 21px;
-        font-weight: 700;
-        margin-top: 10px;
+        font-size: 27px;
+        font-weight: 750;
+        margin-top: 25px;
         margin-bottom: 15px;
     }
 
+    .result-box {
+        padding: 30px;
+        border-radius: 22px;
+        text-align: center;
+        margin-top: 20px;
+        background: rgba(255,255,255,0.06);
+        border: 1px solid rgba(255,255,255,0.12);
+    }
 
-    /* ---------- Status ---------- */
+    .result-number {
+        font-size: 55px;
+        font-weight: 900;
+        margin: 5px;
+    }
+
+    .result-label {
+        color: #a9bdd5;
+        font-size: 17px;
+    }
 
     .status-good {
-        background: rgba(0, 214, 170, 0.10);
-        border: 1px solid rgba(0, 214, 170, 0.3);
-        color: #00d6aa;
-        padding: 14px;
-        border-radius: 12px;
-        text-align: center;
-        font-weight: 600;
+        font-size: 26px;
+        font-weight: 800;
+        color: #35f2a0;
     }
-
 
     .status-medium {
-        background: rgba(255, 190, 70, 0.10);
-        border: 1px solid rgba(255, 190, 70, 0.3);
-        color: #ffbe46;
-        padding: 14px;
-        border-radius: 12px;
-        text-align: center;
-        font-weight: 600;
+        font-size: 26px;
+        font-weight: 800;
+        color: #ffd166;
     }
 
-
-    .status-low {
-        background: rgba(255, 80, 90, 0.10);
-        border: 1px solid rgba(255, 80, 90, 0.3);
-        color: #ff6670;
-        padding: 14px;
-        border-radius: 12px;
-        text-align: center;
-        font-weight: 600;
+    .status-bad {
+        font-size: 26px;
+        font-weight: 800;
+        color: #ff6b6b;
     }
 
-
-    /* ---------- Buttons ---------- */
-
-    .stButton > button {
-        width: 100%;
-        height: 52px;
-
-        border-radius: 12px;
-        border: 1px solid #00d6aa;
-
-        background: linear-gradient(
-            90deg,
-            #00b894,
-            #00d6aa
-        );
-
-        color: #06110e;
-        font-size: 16px;
-        font-weight: 700;
-
-        transition: 0.2s;
-    }
-
-    .stButton > button:hover {
-        transform: translateY(-2px);
-
-        box-shadow:
-            0 8px 25px rgba(0,214,170,0.25);
-    }
-
-
-    /* ---------- Inputs ---------- */
-
-    div[data-baseweb="input"] {
-        background: #111722 !important;
-        border-radius: 10px;
-    }
-
-    div[data-baseweb="input"] input {
-        color: #ffffff !important;
-    }
-
-
-    /* ---------- Divider ---------- */
-
-    hr {
-        border-color: #202938;
-    }
-
-
-    /* ---------- Footer ---------- */
-
-    .footer {
-        text-align: center;
-        color: #667085;
-        font-size: 13px;
-        margin-top: 40px;
+    .info-card {
         padding: 20px;
+        border-radius: 18px;
+        background: rgba(255,255,255,0.045);
+        border: 1px solid rgba(255,255,255,0.08);
+        margin-bottom: 15px;
+    }
+
+    div[data-testid="stMetric"] {
+        background: rgba(255,255,255,0.05);
+        padding: 15px;
+        border-radius: 15px;
     }
 
 </style>
 """, unsafe_allow_html=True)
 
 
-# =========================================================
+# ============================================================
 # LOAD MODEL
-# =========================================================
+# ============================================================
 
 @st.cache_resource
 def load_model():
 
-    return joblib.load("rul_model.pkl")
+    model_path = "rul_model(1).pkl"
+
+    try:
+        model = joblib.load(model_path)
+        return model, None
+
+    except Exception as e:
+        return None, str(e)
 
 
-try:
+model, model_error = load_model()
 
-    model = load_model()
 
-except Exception:
+# ============================================================
+# HEADER
+# ============================================================
 
-    st.error(
-        "❌ Unable to load rul_model.pkl. "
-        "Place the model file in the same folder as app.py."
-    )
+st.markdown("""
+<div class="hero">
+
+<div class="main-title">
+🔋 BatteryAI
+</div>
+
+<div class="subtitle">
+AI / ML Model for Predicting Reusable Battery Life
+</div>
+
+</div>
+""", unsafe_allow_html=True)
+
+
+# ============================================================
+# MODEL ERROR
+# ============================================================
+
+if model is None:
+
+    st.error("❌ Model could not be loaded.")
+
+    st.code(model_error)
+
+    st.info("""
+    Make sure your project folder contains:
+
+    app.py
+    rul_model(1).pkl
+    requirements.txt
+    """)
 
     st.stop()
 
 
-# =========================================================
+# ============================================================
 # SIDEBAR
-# =========================================================
+# ============================================================
 
-with st.sidebar:
+st.sidebar.title("🔋 BatteryAI")
 
-    st.markdown(
-        """
-        <div style="
-            font-size:25px;
-            font-weight:800;
-            margin-bottom:25px;
-        ">
-        🔋 Battery AI
-        </div>
-        """,
-        unsafe_allow_html=True
-    )
+st.sidebar.markdown("""
+### Navigation
 
-    st.markdown("### Navigation")
+Use this application to estimate:
 
-    page = st.radio(
-        "",
-        [
-            "🏠 Dashboard",
-            "🔮 RUL Prediction",
-            "ℹ️ About Model"
-        ]
-    )
+- 🔋 Battery Health
+- ⏳ Remaining Useful Life
+- ♻️ Second-Life Suitability
+- 📊 Battery condition
+- 🤖 AI prediction
 
-    st.divider()
+---
 
-    st.markdown(
-        """
-        **AI Engine**
+### Model
 
-        Random Forest Regressor
+**Algorithm:** Random Forest Regressor
 
-        **Prediction**
+**Trees:** 200
 
-        Remaining Useful Life
+**Inputs:** 8 battery parameters
+""")
 
-        **Unit**
-
-        Battery Cycles
-        """
-    )
+page = st.sidebar.radio(
+    "Select Module",
+    [
+        "🏠 Dashboard",
+        "🔮 RUL Prediction",
+        "📊 Battery Analysis",
+        "ℹ️ About Project"
+    ]
+)
 
 
-# =========================================================
+# ============================================================
 # DASHBOARD
-# =========================================================
+# ============================================================
 
 if page == "🏠 Dashboard":
 
     st.markdown(
-        '<div class="main-title">Battery Health Dashboard</div>',
+        '<div class="section-title">⚡ Battery Intelligence Dashboard</div>',
         unsafe_allow_html=True
     )
 
-    st.markdown(
-        '<div class="subtitle">'
-        'AI-powered Remaining Useful Life prediction system'
-        '</div>',
-        unsafe_allow_html=True
-    )
-
-    col1, col2, col3 = st.columns(3)
+    col1, col2, col3, col4 = st.columns(4)
 
     with col1:
-
-        st.markdown(
-            """
-            <div class="card">
-                <div style="color:#8d99aa;">
-                    MODEL
-                </div>
-
-                <div style="
-                    font-size:24px;
-                    font-weight:700;
-                    margin-top:8px;
-                ">
-                    Random Forest
-                </div>
-
-                <div style="
-                    color:#00d6aa;
-                    margin-top:6px;
-                ">
-                    ● Active
-                </div>
-            </div>
-            """,
-            unsafe_allow_html=True
-        )
+        st.markdown("""
+        <div class="metric-card">
+            <div class="metric-title">🤖 ML Algorithm</div>
+            <div class="metric-value">Random Forest</div>
+        </div>
+        """, unsafe_allow_html=True)
 
     with col2:
-
-        st.markdown(
-            """
-            <div class="card">
-                <div style="color:#8d99aa;">
-                    INPUT FEATURES
-                </div>
-
-                <div style="
-                    font-size:24px;
-                    font-weight:700;
-                    margin-top:8px;
-                ">
-                    8
-                </div>
-
-                <div style="
-                    color:#8d99aa;
-                    margin-top:6px;
-                ">
-                    Battery parameters
-                </div>
-            </div>
-            """,
-            unsafe_allow_html=True
-        )
+        st.markdown("""
+        <div class="metric-card">
+            <div class="metric-title">🌳 Trees</div>
+            <div class="metric-value">200</div>
+        </div>
+        """, unsafe_allow_html=True)
 
     with col3:
-
-        st.markdown(
-            """
-            <div class="card">
-                <div style="color:#8d99aa;">
-                    OUTPUT
-                </div>
-
-                <div style="
-                    font-size:24px;
-                    font-weight:700;
-                    margin-top:8px;
-                ">
-                    RUL
-                </div>
-
-                <div style="
-                    color:#8d99aa;
-                    margin-top:6px;
-                ">
-                    Remaining cycles
-                </div>
-            </div>
-            """,
-            unsafe_allow_html=True
-        )
-
-
-    st.markdown(
-        """
-        <div class="card">
-
-        <div class="section-title">
-        🔋 How the system works
+        st.markdown("""
+        <div class="metric-card">
+            <div class="metric-title">📥 Input Features</div>
+            <div class="metric-value">8</div>
         </div>
+        """, unsafe_allow_html=True)
 
-        <p style="color:#9aa5b5;line-height:1.8;">
-
-        The system uses battery operating parameters such as
-        cycle count, voltage, current, temperature, capacity,
-        resistance, charge time and discharge time.
-
-        These parameters are passed to a trained
-        <b>Random Forest Regression model</b> to estimate
-        the battery's Remaining Useful Life (RUL).
-
-        </p>
-
+    with col4:
+        st.markdown("""
+        <div class="metric-card">
+            <div class="metric-title">♻️ Application</div>
+            <div class="metric-value">2nd Life</div>
         </div>
-        """,
-        unsafe_allow_html=True
-    )
+        """, unsafe_allow_html=True)
 
-
-# =========================================================
-# RUL PREDICTION PAGE
-# =========================================================
-
-elif page == "🔮 RUL Prediction":
+    st.markdown("---")
 
     st.markdown(
-        '<div class="main-title">RUL Prediction</div>',
-        unsafe_allow_html=True
-    )
-
-    st.markdown(
-        '<div class="subtitle">'
-        'Enter the current battery operating parameters'
-        '</div>',
-        unsafe_allow_html=True
-    )
-
-
-    # -----------------------------------------------------
-    # INPUT CARD
-    # -----------------------------------------------------
-
-    st.markdown(
-        '<div class="section-title">🔧 Battery Parameters</div>',
+        '<div class="section-title">🔋 What does this system do?</div>',
         unsafe_allow_html=True
     )
 
     col1, col2 = st.columns(2)
 
+    with col1:
+
+        st.markdown("""
+        <div class="info-card">
+
+        ### 🔬 Battery Prediction
+
+        The system uses machine learning to estimate the
+        **Remaining Useful Life (RUL)** of a used lithium-ion battery.
+
+        The prediction is based on:
+
+        - Charge/discharge cycles
+        - Voltage
+        - Current
+        - Temperature
+        - Capacity
+        - Internal resistance
+        - Charge time
+        - Discharge time
+
+        </div>
+        """, unsafe_allow_html=True)
+
+    with col2:
+
+        st.markdown("""
+        <div class="info-card">
+
+        ### ♻️ Second-Life Applications
+
+        Batteries with useful remaining life can potentially
+        be considered for applications such as:
+
+        ☀️ Solar energy storage
+
+        💡 Emergency lighting
+
+        🔋 Portable power systems
+
+        🏠 Backup energy storage
+
+        </div>
+        """, unsafe_allow_html=True)
+
+    st.info(
+        "💡 Go to **RUL Prediction** from the sidebar to test your battery."
+    )
+
+
+# ============================================================
+# RUL PREDICTION
+# ============================================================
+
+elif page == "🔮 RUL Prediction":
+
+    st.markdown(
+        '<div class="section-title">🔮 AI Battery Life Prediction</div>',
+        unsafe_allow_html=True
+    )
+
+    st.write(
+        "Enter the battery operating parameters below. "
+        "The trained Random Forest model will estimate the remaining useful life."
+    )
+
+    st.markdown("---")
+
+    # --------------------------------------------------------
+    # INPUTS
+    # --------------------------------------------------------
+
+    col1, col2, col3, col4 = st.columns(4)
 
     with col1:
 
         cycle = st.number_input(
-            "Cycle",
+            "🔄 Cycle",
             min_value=0.0,
+            max_value=10000.0,
             value=100.0,
-            step=1.0
+            step=1.0,
+            help="Number of charge/discharge cycles"
         )
-
-        voltage = st.number_input(
-            "Voltage (V)",
-            min_value=0.0,
-            value=3.70,
-            step=0.01
-        )
-
-        current = st.number_input(
-            "Current (A)",
-            value=1.00,
-            step=0.01
-        )
-
-        temperature = st.number_input(
-            "Temperature (°C)",
-            value=25.0,
-            step=0.1
-        )
-
 
     with col2:
 
-        capacity = st.number_input(
-            "Capacity (Ah)",
+        voltage = st.number_input(
+            "⚡ Voltage (V)",
             min_value=0.0,
-            value=2.00,
+            max_value=100.0,
+            value=3.7,
             step=0.01
         )
 
-        resistance = st.number_input(
-            "Resistance (Ohm)",
+    with col3:
+
+        current = st.number_input(
+            "🔌 Current (A)",
+            min_value=-100.0,
+            max_value=100.0,
+            value=2.0,
+            step=0.1
+        )
+
+    with col4:
+
+        temperature = st.number_input(
+            "🌡️ Temperature (°C)",
+            min_value=-50.0,
+            max_value=100.0,
+            value=25.0,
+            step=0.5
+        )
+
+    col5, col6, col7, col8 = st.columns(4)
+
+    with col5:
+
+        capacity = st.number_input(
+            "🔋 Capacity (Ah)",
             min_value=0.0,
-            value=0.050,
+            max_value=1000.0,
+            value=2.5,
+            step=0.01
+        )
+
+    with col6:
+
+        resistance = st.number_input(
+            "〰️ Resistance (Ω)",
+            min_value=0.0,
+            max_value=100.0,
+            value=0.05,
             step=0.001,
             format="%.3f"
         )
 
+    with col7:
+
         charge_time = st.number_input(
-            "Charge Time (hours)",
+            "⏱️ Charge Time (min)",
             min_value=0.0,
-            value=2.0,
-            step=0.1
+            max_value=10000.0,
+            value=120.0,
+            step=1.0
         )
+
+    with col8:
 
         discharge_time = st.number_input(
-            "Discharge Time (hours)",
+            "⏱️ Discharge Time (min)",
             min_value=0.0,
-            value=2.0,
-            step=0.1
+            max_value=10000.0,
+            value=100.0,
+            step=1.0
         )
 
+    st.markdown("")
 
-    st.markdown("<br>", unsafe_allow_html=True)
+    # --------------------------------------------------------
+    # INPUT DATAFRAME
+    # --------------------------------------------------------
 
+    input_data = pd.DataFrame({
+        "cycle": [cycle],
+        "voltage": [voltage],
+        "current": [current],
+        "temperature": [temperature],
+        "capacity": [capacity],
+        "resistance": [resistance],
+        "charge_time": [charge_time],
+        "discharge_time": [discharge_time]
+    })
 
-    # -----------------------------------------------------
-    # PREDICT BUTTON
-    # -----------------------------------------------------
+    st.markdown("### 📋 Battery Input Summary")
 
-    predict = st.button(
-        "🔮  Predict Remaining Useful Life",
-        use_container_width=True
+    st.dataframe(
+        input_data,
+        use_container_width=True,
+        hide_index=True
     )
 
+    # --------------------------------------------------------
+    # PREDICT BUTTON
+    # --------------------------------------------------------
+
+    predict = st.button(
+        "🚀 ANALYZE BATTERY WITH AI",
+        use_container_width=True,
+        type="primary"
+    )
 
     if predict:
 
-        # Validation
+        # ----------------------------------------------
+        # AI ANALYSIS ANIMATION
+        # ----------------------------------------------
 
-        if voltage <= 0:
+        progress = st.progress(0)
 
-            st.error("Voltage must be greater than 0.")
-            st.stop()
+        status = st.empty()
 
-        if capacity <= 0:
+        steps = [
+            "🔍 Reading battery parameters...",
+            "⚙️ Processing battery characteristics...",
+            "🧠 Running Random Forest model...",
+            "📊 Estimating remaining useful life...",
+            "♻️ Evaluating second-life potential...",
+            "✅ Analysis completed!"
+        ]
 
-            st.error("Capacity must be greater than 0.")
-            st.stop()
+        for i, message in enumerate(steps):
 
-        if resistance < 0:
+            status.markdown(f"### {message}")
 
-            st.error("Resistance cannot be negative.")
-            st.stop()
+            progress.progress(
+                int((i + 1) / len(steps) * 100)
+            )
 
-        if charge_time <= 0:
+            time.sleep(0.35)
 
-            st.error("Charge time must be greater than 0.")
-            st.stop()
+        # ----------------------------------------------
+        # MODEL PREDICTION
+        # ----------------------------------------------
 
-        if discharge_time <= 0:
+        try:
 
-            st.error("Discharge time must be greater than 0.")
-            st.stop()
+            prediction = model.predict(input_data)
 
+            rul = float(prediction[0])
 
-        # -------------------------------------------------
-        # MODEL INPUT
-        # -------------------------------------------------
+            # Avoid negative RUL display
+            rul_display = max(0, rul)
 
-        input_data = pd.DataFrame({
+            # ------------------------------------------
+            # STATUS
+            # ------------------------------------------
 
-            "cycle": [cycle],
+            if rul_display >= 80:
 
-            "voltage": [voltage],
+                battery_status = "🟢 EXCELLENT"
+                status_class = "status-good"
+                suitability = "HIGH"
+                recommendation = (
+                    "Battery shows strong remaining useful life "
+                    "and may be considered for second-life applications."
+                )
 
-            "current": [current],
+            elif rul_display >= 50:
 
-            "temperature": [temperature],
+                battery_status = "🟡 MODERATE"
+                status_class = "status-medium"
+                suitability = "MEDIUM"
+                recommendation = (
+                    "Battery has moderate remaining useful life. "
+                    "Further testing is recommended before reuse."
+                )
 
-            "capacity": [capacity],
+            else:
 
-            "resistance": [resistance],
+                battery_status = "🔴 LOW"
+                status_class = "status-bad"
+                suitability = "LOW"
+                recommendation = (
+                    "Battery has relatively low predicted remaining "
+                    "useful life. Detailed safety and performance testing "
+                    "should be performed before reuse."
+                )
 
-            "charge_time": [charge_time],
+            # ------------------------------------------
+            # RESULTS
+            # ------------------------------------------
 
-            "discharge_time": [discharge_time]
-
-        })
-
-
-        # -------------------------------------------------
-        # PREDICTION
-        # -------------------------------------------------
-
-        with st.spinner("Analyzing battery condition..."):
-
-            prediction = model.predict(input_data)[0]
-
-
-        prediction = max(0, prediction)
-
-
-        st.markdown("<br>", unsafe_allow_html=True)
-
-
-        # -------------------------------------------------
-        # MAIN RESULT
-        # -------------------------------------------------
-
-        st.markdown(
-            f"""
-            <div class="prediction-card">
-
-                <div class="prediction-label">
-                    ESTIMATED REMAINING USEFUL LIFE
-                </div>
-
-                <div class="prediction-value">
-                    {prediction:.2f}
-                </div>
-
-                <div class="prediction-unit">
-                    battery cycles
-                </div>
-
-            </div>
-            """,
-            unsafe_allow_html=True
-        )
-
-
-        st.markdown("<br>", unsafe_allow_html=True)
-
-
-        # -------------------------------------------------
-        # STATUS
-        # -------------------------------------------------
-
-        if prediction <= 50:
+            st.markdown("---")
 
             st.markdown(
-                """
-                <div class="status-low">
-                    🔴 LOW ESTIMATED RUL — The model estimates relatively few
-                    remaining cycles.
-                </div>
-                """,
+                '<div class="section-title">🤖 AI Prediction Result</div>',
                 unsafe_allow_html=True
             )
 
-        elif prediction <= 200:
+            col1, col2, col3 = st.columns(3)
 
-            st.markdown(
-                """
-                <div class="status-medium">
-                    🟡 MODERATE ESTIMATED RUL — The model estimates a
-                    moderate number of remaining cycles.
+            with col1:
+
+                st.markdown(f"""
+                <div class="result-box">
+
+                    <div class="result-label">
+                    ⏳ PREDICTED RUL
+                    </div>
+
+                    <div class="result-number">
+                    {rul_display:.2f}
+                    </div>
+
+                    <div class="result-label">
+                    Model Output
+                    </div>
+
                 </div>
-                """,
-                unsafe_allow_html=True
+                """, unsafe_allow_html=True)
+
+            with col2:
+
+                st.markdown(f"""
+                <div class="result-box">
+
+                    <div class="result-label">
+                    🔋 BATTERY CONDITION
+                    </div>
+
+                    <div class="{status_class}">
+                    {battery_status}
+                    </div>
+
+                </div>
+                """, unsafe_allow_html=True)
+
+            with col3:
+
+                st.markdown(f"""
+                <div class="result-box">
+
+                    <div class="result-label">
+                    ♻️ SECOND-LIFE SUITABILITY
+                    </div>
+
+                    <div class="{status_class}">
+                    {suitability}
+                    </div>
+
+                </div>
+                """, unsafe_allow_html=True)
+
+            # ------------------------------------------
+            # GAUGE
+            # ------------------------------------------
+
+            st.markdown("### 📊 Remaining Useful Life Indicator")
+
+            gauge_value = min(max(rul_display, 0), 100)
+
+            st.progress(
+                gauge_value / 100
             )
 
-        else:
-
-            st.markdown(
-                """
-                <div class="status-good">
-                    🟢 HIGHER ESTIMATED RUL — The model estimates a
-                    relatively higher number of remaining cycles.
-                </div>
-                """,
-                unsafe_allow_html=True
+            st.caption(
+                f"Predicted RUL: {rul_display:.2f}"
             )
 
+            # ------------------------------------------
+            # RECOMMENDATION
+            # ------------------------------------------
 
-        st.markdown("<br>", unsafe_allow_html=True)
+            st.markdown("### ♻️ AI Assessment")
 
+            st.info(recommendation)
 
-        # -------------------------------------------------
-        # TWO COLUMN RESULT
-        # -------------------------------------------------
+            # ------------------------------------------
+            # BATTERY PARAMETERS CHART
+            # ------------------------------------------
 
-        result1, result2 = st.columns(2)
+            st.markdown("### 📈 Battery Parameters")
 
-
-        with result1:
-
-            st.markdown(
-                """
-                <div class="card">
-
-                <div class="section-title">
-                📋 Input Summary
-                </div>
-
-                """,
-                unsafe_allow_html=True
-            )
-
-            summary = pd.DataFrame({
-
+            chart_data = pd.DataFrame({
                 "Parameter": [
                     "Cycle",
                     "Voltage",
@@ -720,116 +669,105 @@ elif page == "🔮 RUL Prediction":
                     "Charge Time",
                     "Discharge Time"
                 ],
-
                 "Value": [
-                    f"{cycle:.0f}",
-                    f"{voltage:.2f} V",
-                    f"{current:.2f} A",
-                    f"{temperature:.1f} °C",
-                    f"{capacity:.2f} Ah",
-                    f"{resistance:.3f} Ω",
-                    f"{charge_time:.2f} h",
-                    f"{discharge_time:.2f} h"
+                    cycle,
+                    voltage,
+                    current,
+                    temperature,
+                    capacity,
+                    resistance,
+                    charge_time,
+                    discharge_time
                 ]
-
             })
 
-            st.dataframe(
-                summary,
-                use_container_width=True,
-                hide_index=True
+            st.bar_chart(
+                chart_data.set_index("Parameter")
             )
 
-            st.markdown("</div>", unsafe_allow_html=True)
+            # ------------------------------------------
+            # DOWNLOAD REPORT
+            # ------------------------------------------
 
+            report = f"""
+BATTERYAI - AI BATTERY LIFE PREDICTION REPORT
+==============================================
 
-        with result2:
+Generated: {datetime.now().strftime("%Y-%m-%d %H:%M:%S")}
 
-            st.markdown(
-                f"""
-                <div class="card">
+BATTERY INPUTS
+--------------
 
-                <div class="section-title">
-                🤖 AI Prediction
-                </div>
+Cycle: {cycle}
+Voltage: {voltage} V
+Current: {current} A
+Temperature: {temperature} °C
+Capacity: {capacity} Ah
+Resistance: {resistance} Ohm
+Charge Time: {charge_time} minutes
+Discharge Time: {discharge_time} minutes
 
-                <p style="color:#8d99aa;">
-                Model
-                </p>
+AI PREDICTION
+-------------
 
-                <p style="font-size:20px;font-weight:700;">
-                Random Forest Regressor
-                </p>
+Predicted RUL: {rul_display:.2f}
 
-                <p style="color:#8d99aa;">
-                Estimated RUL
-                </p>
+Battery Condition:
+{battery_status}
 
-                <p style="
-                    font-size:32px;
-                    font-weight:800;
-                    color:#00d6aa;
-                ">
-                {prediction:.2f} cycles
-                </p>
+Second-Life Suitability:
+{suitability}
 
-                <p style="color:#8d99aa;line-height:1.6;">
-                This value represents the model's estimated
-                remaining useful life based on the supplied
-                battery parameters.
-                </p>
+AI Assessment:
+{recommendation}
 
-                </div>
-                """,
-                unsafe_allow_html=True
+MODEL
+-----
+
+Algorithm: Random Forest Regressor
+Number of Trees: 200
+Input Features: 8
+
+NOTE
+----
+
+This prediction is an AI/ML estimate and should not be
+used as the sole basis for battery safety or engineering decisions.
+Physical inspection and appropriate battery testing are required.
+"""
+
+            st.download_button(
+                label="📥 Download Prediction Report",
+                data=report,
+                file_name="battery_prediction_report.txt",
+                mime="text/plain",
+                use_container_width=True
             )
 
+        except Exception as e:
 
-# =========================================================
-# ABOUT MODEL
-# =========================================================
+            st.error("❌ Prediction failed.")
 
-elif page == "ℹ️ About Model":
+            st.code(str(e))
+
+
+# ============================================================
+# BATTERY ANALYSIS
+# ============================================================
+
+elif page == "📊 Battery Analysis":
 
     st.markdown(
-        '<div class="main-title">About the AI Model</div>',
+        '<div class="section-title">📊 Battery Parameter Analysis</div>',
         unsafe_allow_html=True
     )
 
-    st.markdown(
-        '<div class="subtitle">'
-        'Technical information about the RUL prediction system'
-        '</div>',
-        unsafe_allow_html=True
+    st.write(
+        "The trained model uses eight battery characteristics "
+        "to estimate Remaining Useful Life."
     )
 
-
-    st.markdown(
-        """
-        <div class="card">
-
-        <div class="section-title">
-        🤖 Machine Learning Model
-        </div>
-
-        <p style="color:#9aa5b5;line-height:1.8;">
-
-        This application uses a <b>Random Forest Regressor</b>
-        trained to predict the Remaining Useful Life (RUL)
-        of a battery.
-
-        </p>
-
-        </div>
-        """,
-        unsafe_allow_html=True
-    )
-
-
-    st.subheader("📥 Input Features")
-
-    features = pd.DataFrame({
-
+    feature_info = pd.DataFrame({
         "Feature": [
             "cycle",
             "voltage",
@@ -840,48 +778,119 @@ elif page == "ℹ️ About Model":
             "charge_time",
             "discharge_time"
         ],
-
-        "Description": [
-            "Battery operating cycle",
+        "Meaning": [
+            "Charge/discharge cycle count",
             "Battery voltage",
-            "Battery current",
-            "Operating temperature",
+            "Operating current",
+            "Battery temperature",
             "Battery capacity",
             "Internal resistance",
-            "Charging duration",
-            "Discharging duration"
+            "Time required for charging",
+            "Time during discharge"
         ]
-
     })
 
     st.dataframe(
-        features,
+        feature_info,
         use_container_width=True,
         hide_index=True
     )
 
+    st.markdown("### 🧠 Model Information")
 
-    st.info(
-        "The prediction should be interpreted within the range "
-        "and characteristics of the data used to train the model."
+    col1, col2 = st.columns(2)
+
+    with col1:
+
+        st.metric(
+            "Algorithm",
+            "Random Forest Regressor"
+        )
+
+        st.metric(
+            "Number of Trees",
+            "200"
+        )
+
+    with col2:
+
+        st.metric(
+            "Input Features",
+            "8"
+        )
+
+        st.metric(
+            "Prediction Type",
+            "Regression"
+        )
+
+
+# ============================================================
+# ABOUT
+# ============================================================
+
+elif page == "ℹ️ About Project":
+
+    st.markdown(
+        '<div class="section-title">ℹ️ About the Project</div>',
+        unsafe_allow_html=True
     )
 
+    st.markdown("""
+    ## 🔋 AI/ML Model for Predicting Reusable Battery Life
 
-# =========================================================
-# FOOTER
-# =========================================================
+    This project uses **Artificial Intelligence and Machine Learning**
+    to estimate the remaining useful life of used lithium-ion batteries.
 
-st.markdown(
-    """
-    <div class="footer">
+    ### 🎯 Main Objective
 
-    🔋 Battery AI • Remaining Useful Life Prediction
+    The objective is to determine whether a battery may still have
+    useful remaining life for potential **second-life applications**.
 
-    <br>
+    ### 🤖 Machine Learning Model
 
-    Powered by Machine Learning
+    The uploaded trained model is a:
 
-    </div>
-    """,
-    unsafe_allow_html=True
-)
+    **Random Forest Regressor**
+
+    with:
+
+    - 200 decision trees
+    - 8 input features
+    - Regression output
+
+    ### 📥 Input Parameters
+
+    The model analyzes:
+
+    1. Cycle
+    2. Voltage
+    3. Current
+    4. Temperature
+    5. Capacity
+    6. Resistance
+    7. Charge Time
+    8. Discharge Time
+
+    ### ♻️ Possible Applications
+
+    Used batteries with sufficient performance may potentially be
+    evaluated for:
+
+    - Solar energy storage
+    - Emergency lighting
+    - Portable power systems
+    - Backup energy storage
+    - Stationary energy storage
+
+    ### ⚠️ Important
+
+    The application provides an ML-based prediction.
+
+    It does **not** replace professional battery safety testing,
+    physical inspection, electrical characterization, or certification.
+    """)
+
+    st.success(
+        "🔋 BatteryAI — Turning battery data into intelligent reuse insights."
+    )
