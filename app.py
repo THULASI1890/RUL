@@ -1,4 +1,6 @@
+import base64
 import hashlib
+import io
 from datetime import datetime
 from pathlib import Path
 
@@ -47,7 +49,11 @@ def load_packaged_model(filename):
     if not path.exists():
         raise FileNotFoundError(f"{filename} was not found.")
 
-    if filename.endswith(".b64"):\n        raw = base64.b64decode(path.read_text(encoding="utf-8"))\n        obj = joblib.load(__import__("io").BytesIO(raw))\n    else:\n        obj = joblib.load(path)
+    if filename.endswith(".b64"):
+        raw = base64.b64decode(path.read_text(encoding="utf-8"))
+        obj = joblib.load(io.BytesIO(raw))
+    else:
+        obj = joblib.load(path)
 
     # New deployment-safe format:
     # {"model": estimator, "features": [...], "target": "...", ...}
