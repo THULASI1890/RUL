@@ -20,8 +20,8 @@ FEATURES = [
     "resistance", "charge_time", "discharge_time", "soh"
 ]
 
-RUL_MODEL_FILES = ["rul_model.pkl", "rul_model(1).pkl"]
-REUSABLE_MODEL_FILES = ["reusable_model.pkl"]
+RUL_MODEL_FILES = ["rul_model.pkl", "rul_model.pkl.b64", "rul_model(1).pkl"]
+REUSABLE_MODEL_FILES = ["reusable_model.pkl", "reusable_model.pkl.b64"]
 
 USERS = {
     "admin@batteryai.com": hashlib.sha256("BatteryAI@123".encode()).hexdigest(),
@@ -47,7 +47,7 @@ def load_packaged_model(filename):
     if not path.exists():
         raise FileNotFoundError(f"{filename} was not found.")
 
-    obj = joblib.load(path)
+    if filename.endswith(".b64"):\n        raw = base64.b64decode(path.read_text(encoding="utf-8"))\n        obj = joblib.load(__import__("io").BytesIO(raw))\n    else:\n        obj = joblib.load(path)
 
     # New deployment-safe format:
     # {"model": estimator, "features": [...], "target": "...", ...}
